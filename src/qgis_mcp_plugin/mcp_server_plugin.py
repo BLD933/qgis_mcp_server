@@ -47,6 +47,9 @@ tool_router = {
     "select_features": "_select_features",
     "extract_selected": "_extract_selected",
     "get_crs_info": "_get_crs_info",
+    "set_layer_crs": "_set_layer_crs",
+    "reproject_layer": "_reproject_layer",
+    "set_project_crs": "_set_project_crs",
     "list_layouts": "_list_layouts",
     "get_layout_info": "_get_layout_info",
     "list_algorithms": "_list_algorithms",
@@ -100,6 +103,12 @@ async def handle_call_tool(name: str, arguments: dict | None):
         return await _import_and_call("_select_features", project, arguments)
     elif name == "extract_selected":
         return await _import_and_call("_extract_selected", project, arguments)
+    elif name == "set_layer_crs":
+        return await _import_and_call("_set_layer_crs", get_project(), arguments)
+    elif name == "reproject_layer":
+        return await _import_and_call("_reproject_layer", get_project(), arguments)
+    elif name == "set_project_crs":
+        return await _import_and_call("_set_project_crs", get_project(), arguments)
     elif name == "get_crs_info":
         return await _import_and_call("_get_crs_info", arguments)
     elif name == "list_layouts":

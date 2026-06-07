@@ -36,6 +36,7 @@ try:
         QgsRasterLayer,
         QgsVectorFileWriter,
         QgsCoordinateReferenceSystem,
+        QgsCoordinateTransform,
         QgsStatisticalSummary,
         QgsCoordinateTransformContext,
         QgsGraduatedSymbolRenderer,
@@ -401,6 +402,42 @@ async def handle_list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="set_layer_crs",
+            description="Assign a different CRS to a layer without reprojecting geometries",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "layer_name": {"type": "string", "description": "Name of the layer"},
+                    "crs_id": {"type": "string", "description": "Target CRS (e.g. EPSG:4326, EPSG:3857)"},
+                },
+                "required": ["layer_name", "crs_id"],
+            },
+        ),
+        types.Tool(
+            name="reproject_layer",
+            description="Reproject a layer's geometries to a different CRS, creating a new memory layer",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "layer_name": {"type": "string", "description": "Name of the source layer"},
+                    "target_crs": {"type": "string", "description": "Target CRS (e.g. EPSG:4326, EPSG:3857)"},
+                    "new_layer_name": {"type": "string", "description": "Name for the new reprojected layer (default: source + '_reprojected')"},
+                },
+                "required": ["layer_name", "target_crs"],
+            },
+        ),
+        types.Tool(
+            name="set_project_crs",
+            description="Change the project's coordinate reference system",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "crs_id": {"type": "string", "description": "Target CRS (e.g. EPSG:4326, EPSG:3857)"},
+                },
+                "required": ["crs_id"],
+            },
+        ),
+        types.Tool(
             name="select_features",
             description="Select features in a vector layer by expression, location, or attribute",
             inputSchema={
@@ -645,6 +682,12 @@ async def handle_call_tool(
         return await _select_features(project, arguments)
     elif name == "extract_selected":
         return await _extract_selected(project, arguments)
+    elif name == "set_layer_crs":
+        return await _set_layer_crs(project, arguments)
+    elif name == "reproject_layer":
+        return await _reproject_layer(project, arguments)
+    elif name == "set_project_crs":
+        return await _set_project_crs(project, arguments)
     elif name == "get_crs_info":
         return await _get_crs_info(arguments)
     elif name == "list_layouts":
@@ -1328,6 +1371,80 @@ async def _select_features(project, arguments: dict | None) -> list[types.TextCo
 
     else:
         return [types.TextContent(type="text", text=f"Unknown selection method: {method}. Use: by_expression, by_location, by_attribute")]
+
+
+async def _set_layer_crs(project, arguments: dict | None) -> list[types.TextContent]:
+    if not arguments or "layer_name" not in arguments or "crs_id" not in arguments:
+        return [types.TextContent(type="text", text="Missing required arguments: layer_name, crs_id")]
+
+    layer_name = arguments["layer_name"]
+    crs_id = arguments["crs_id"]
+
+    crs = QgsCoordinateReferenceSystem(crs_id)
+    if not crs.isValid():
+        return [types.TextContent(type="text", text=f"Invalid CRS: {crs_id}")]
+
+    layer = find_layer(project, layer_name)
+    if not layer:
+        return [types.TextContent(type="text", text=f"Layer '{layer_name}' not found.")]
+
+    layer.setCrs(crs)
+    return [types.TextContent(type="text", text=str({
+        "action": "set_layer_crs",
+        "layer": layer_name,
+        "crs": crs.authid(),
+    }))]
+
+
+async def _reproject_layer(project, arguments: dict | None) -> list[types.TextContent]:
+    if not arguments or "layer_name" not in arguments or "target_crs" not in arguments:
+        return [types.TextContent(type="text", text="Missing required arguments: layer_name, target_crs")]
+
+    layer_name = arguments["layer_name"]
+    target_crs_id = arguments["target_crs"]
+    new_name = arguments.get("new_layer_name", f"{layer_name}_reprojected")
+
+    target_crs = QgsCoordinateReferenceSystem(target_crs_id)
+    if not target_crs.isValid():
+        return [types.TextContent(type="text", text=f"Invalid CRS: {target_crs_id}")]
+
+    layer = find_layer(project, layer_name)
+    if not layer:
+        return [types.TextContent(type="text", text=f"Layer '{layer_name}' not found.")]
+    if layer.type() != 0:
+        return [types.TextContent(type="text", text=f"Layer '{layer_name}' is not a vector layer. Raster reprojection not supported.")]
+
+    request = QgsFeatureRequest()
+    request.setDestinationCrs(target_crs, QgsCoordinateTransformContext())
+    reprojected = layer.materialize(request)
+    if not reprojected:
+        return [types.TextContent(type="text", text="Reprojection failed.")]
+
+    reprojected.setName(new_name)
+    QgsProject.instance().addMapLayer(reprojected)
+
+    return [types.TextContent(type="text", text=str({
+        "action": "reproject_layer",
+        "source": layer_name,
+        "new_layer": new_name,
+        "target_crs": target_crs.authid(),
+        "feature_count": reprojected.featureCount(),
+    }))]
+
+
+async def _set_project_crs(project, arguments: dict | None) -> list[types.TextContent]:
+    if not arguments or "crs_id" not in arguments:
+        return [types.TextContent(type="text", text="Missing required argument: crs_id")]
+
+    crs = QgsCoordinateReferenceSystem(arguments["crs_id"])
+    if not crs.isValid():
+        return [types.TextContent(type="text", text=f"Invalid CRS: {arguments['crs_id']}")]
+
+    project.setCrs(crs)
+    return [types.TextContent(type="text", text=str({
+        "action": "set_project_crs",
+        "crs": crs.authid(),
+    }))]
 
 
 async def _get_crs_info(arguments: dict | None) -> list[types.TextContent]:

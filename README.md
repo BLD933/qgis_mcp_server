@@ -21,7 +21,7 @@ An MCP (Model Context Protocol) server that exposes QGIS capabilities to AI agen
 | **Layout** | `create_layout`, `export_layout`, `list_layouts`, `get_layout_info` |
 | **Render** | `render_map` |
 | **Processing** | `list_algorithms`, `run_processing` |
-| **CRS** | `get_crs_info` |
+| **CRS** | `get_crs_info`, `set_layer_crs`, `reproject_layer`, `set_project_crs` |
 
 ## Quick Start
 
