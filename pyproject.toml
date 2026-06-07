@@ -1,0 +1,14 @@
+[project]
+name = "qgis-mcp"
+version = "0.1.0"
+description = "MCP server for QGIS - expose QGIS project data via Model Context Protocol"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0.0",
+]
+
+[project.scripts]
+qgis-mcp = "qgis_mcp:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

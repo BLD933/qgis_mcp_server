@@ -1,0 +1,16 @@
+[general]
+name=QGIS MCP Server
+description=Expose QGIS desktop capabilities via Model Context Protocol
+version=0.1.0
+qgisMinimumVersion=3.28
+author=opencode
+email=
+about=Provides an MCP server that connects your running QGIS desktop to opencode AI. All operations work with the live project.
+tracker=
+repository=https://github.com/anomalyco/opencode
+tags=MCP, AI, automation
+homepage=
+category=Plugin
+icon=
+experimental=True
+deprecated=False
