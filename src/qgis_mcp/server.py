@@ -41,8 +41,11 @@ try:
         QgsGraduatedSymbolRenderer,
         QgsRendererRange,
         QgsSymbol,
+        QgsVectorLayerSimpleLabeling,
+        QgsPalLayerSettings,
+        QgsTextFormat,
     )
-    from PyQt5.QtGui import QImage, QColor
+    from PyQt5.QtGui import QImage, QColor, QFont
     from PyQt5.QtCore import QSize, QRectF
     QGIS_AVAILABLE = True
 except ImportError:
@@ -484,6 +487,44 @@ async def handle_list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="set_layer_labels",
+            description="Configure labels on a vector layer showing values from a field",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "layer_name": {
+                        "type": "string",
+                        "description": "Name of the vector layer",
+                    },
+                    "field_name": {
+                        "type": "string",
+                        "description": "Field to use for label text",
+                    },
+                    "font_size": {
+                        "type": "number",
+                        "description": "Font size in points (default 10)",
+                        "default": 10,
+                    },
+                    "color": {
+                        "type": "string",
+                        "description": "Text color as hex (default #000000)",
+                        "default": "#000000",
+                    },
+                    "placement": {
+                        "type": "string",
+                        "description": "Label placement: auto, over, above, below, left, right (default auto)",
+                        "default": "auto",
+                    },
+                    "enabled": {
+                        "type": "boolean",
+                        "description": "Enable or disable labels (default true)",
+                        "default": True,
+                    },
+                },
+                "required": ["layer_name", "field_name"],
+            },
+        ),
+        types.Tool(
             name="set_graduated_renderer",
             description="Apply a graduated symbol renderer to a vector layer with growing circles scaled by a numeric field",
             inputSchema={
@@ -610,6 +651,8 @@ async def handle_call_tool(
         return await _list_layouts(project)
     elif name == "get_layout_info":
         return await _get_layout_info(project, arguments)
+    elif name == "set_layer_labels":
+        return await _set_layer_labels(project, arguments)
     elif name == "set_graduated_renderer":
         return await _set_graduated_renderer(project, arguments)
     elif name == "list_algorithms":
@@ -1351,6 +1394,73 @@ async def _get_layout_info(project, arguments: dict | None) -> list[types.TextCo
         }
 
     return [types.TextContent(type="text", text=str(info))]
+
+
+async def _set_layer_labels(project, arguments: dict | None) -> list[types.TextContent]:
+    if not arguments or "layer_name" not in arguments or "field_name" not in arguments:
+        return [types.TextContent(type="text", text="Missing required arguments: layer_name, field_name")]
+
+    layer_name = arguments["layer_name"]
+    field_name = arguments["field_name"]
+    font_size = float(arguments.get("font_size", 10))
+    color_hex = str(arguments.get("color", "#000000"))
+    placement = str(arguments.get("placement", "auto"))
+    enabled = bool(arguments.get("enabled", True))
+
+    layer = find_layer(project, layer_name)
+    if not layer:
+        return [types.TextContent(type="text", text=f"Layer '{layer_name}' not found.")]
+    if layer.type() != 0:
+        return [types.TextContent(type="text", text=f"Layer '{layer_name}' is not a vector layer.")]
+
+    field_idx = layer.fields().indexOf(field_name)
+    if field_idx < 0:
+        return [types.TextContent(type="text", text=f"Field '{field_name}' not found in layer '{layer_name}'.")]
+
+    placement_map = {
+        "auto": QgsPalLayerSettings.PlacementFlags(QgsPalLayerSettings.AboveLine | QgsPalLayerSettings.BelowLine),
+        "over": QgsPalLayerSettings.OverPoint,
+        "above": QgsPalLayerSettings.AboveLine,
+        "below": QgsPalLayerSettings.BelowLine,
+        "left": QgsPalLayerSettings.LeftOfPoint,
+        "right": QgsPalLayerSettings.RightOfPoint,
+    }
+    placement_flags = placement_map.get(placement, placement_map["auto"])
+
+    settings = QgsPalLayerSettings()
+    settings.fieldName = field_name
+    settings.isExpression = False
+    settings.enabled = enabled
+    settings.placement = placement_flags
+    settings.centroidWhole = True
+
+    try:
+        color = QColor(color_hex)
+    except Exception:
+        color = QColor(0, 0, 0)
+
+    text_format = QgsTextFormat()
+    text_format.setFont(QFont("Arial", int(font_size)))
+    text_format.setSize(font_size)
+    text_format.setSizeUnit(QgsUnitTypes.RenderPoints)
+    text_format.setColor(color)
+
+    settings.setFormat(text_format)
+
+    labeling = QgsVectorLayerSimpleLabeling(settings)
+    layer.setLabelsEnabled(enabled)
+    layer.setLabeling(labeling)
+    layer.triggerRepaint()
+
+    return [types.TextContent(type="text", text=str({
+        "action": "set_layer_labels",
+        "layer": layer_name,
+        "field": field_name,
+        "font_size": font_size,
+        "color": color_hex,
+        "placement": placement,
+        "enabled": enabled,
+    }))]
 
 
 async def _set_graduated_renderer(project, arguments: dict | None) -> list[types.TextContent]:

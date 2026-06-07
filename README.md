@@ -17,7 +17,7 @@ An MCP (Model Context Protocol) server that exposes QGIS capabilities to AI agen
 | **Layers** | `list_layers`, `get_layer_info`, `get_layer_features`, `add_layer`, `export_layer` |
 | **Selection** | `select_features`, `extract_selected`, `count_features` |
 | **Attributes** | `get_layer_statistics`, `get_unique_values`, `run_expression` |
-| **Styling** | `set_graduated_renderer` |
+| **Styling** | `set_graduated_renderer`, `set_layer_labels` |
 | **Layout** | `create_layout`, `export_layout`, `list_layouts`, `get_layout_info` |
 | **Render** | `render_map` |
 | **Processing** | `list_algorithms`, `run_processing` |

@@ -52,6 +52,7 @@ tool_router = {
     "list_algorithms": "_list_algorithms",
     "run_processing": "_run_processing",
     "set_graduated_renderer": "_set_graduated_renderer",
+    "set_layer_labels": "_set_layer_labels",
 }
 
 
@@ -109,6 +110,8 @@ async def handle_call_tool(name: str, arguments: dict | None):
         return await _import_and_call("_list_algorithms", arguments)
     elif name == "run_processing":
         return await _import_and_call("_run_processing", arguments)
+    elif name == "set_layer_labels":
+        return await _import_and_call("_set_layer_labels", get_project(), arguments)
     elif name == "set_graduated_renderer":
         return await _import_and_call("_set_graduated_renderer", get_project(), arguments)
     else:
